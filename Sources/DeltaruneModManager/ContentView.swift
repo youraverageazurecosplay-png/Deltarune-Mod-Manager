@@ -22,6 +22,12 @@ struct ContentView: View {
     @State private var instanceSearchText = ""
     @State private var isModSidebarCollapsed = false
     @State private var isDownloadQueuePresented = false
+    @AppStorage("showModLibrary") private var showModLibrary = false
+    @AppStorage("collapsedModCategories") private var collapsedModCategoriesData = ""
+    @State private var targetedCategoryID: String?
+    @State private var pendingCategoryInstanceID: String?
+    @State private var newCategoryName = ""
+    @State private var isCreatingCategory = false
     @State private var windowsFolder: URL?
     @State private var gameApp: URL?
 
@@ -115,6 +121,75 @@ struct ContentView: View {
             ([instance.name, instance.version, instance.description] + instance.authors)
                 .contains { $0.localizedCaseInsensitiveContains(query) }
         }
+    }
+
+    private var collapsedCategoryIDs: Set<String> {
+        guard let data = Data(base64Encoded: collapsedModCategoriesData),
+              let identifiers = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return Set(identifiers)
+    }
+
+    private func toggleCategory(_ id: String) {
+        var collapsed = collapsedCategoryIDs
+        if !collapsed.insert(id).inserted {
+            collapsed.remove(id)
+        }
+        if let data = try? JSONEncoder().encode(collapsed.sorted()) {
+            collapsedModCategoriesData = data.base64EncodedString()
+        }
+    }
+
+    private func moveInstance(_ instanceID: String?, to category: String) -> Bool {
+        guard let instanceID,
+              let instance = model.instances.first(where: { $0.id == instanceID }) else {
+            return false
+        }
+        model.categorizeInstance(instance, as: category == "Uncategorized" ? "" : category)
+        return true
+    }
+
+    private func instanceCard(for instance: ModInstance) -> some View {
+        InstanceCard(
+            instance: instance,
+            iconURL: model.iconURL(for: instance),
+            launch: { model.launch(instance) },
+            isGameSessionActive: model.isGameSessionActive,
+            isActiveInstance: model.activeInstanceID == instance.id,
+            createDesktopShortcut: { model.createDesktopShortcut(for: instance) },
+            update: model.availableModUpdates[instance.id].map { file in
+                { model.updateMod(instance, using: file, catalog: catalog) }
+            },
+            showCustomFiles: { model.showCustomFilesInFinder(for: instance) },
+            showCustomMusic: { model.showCustomMusicInFinder(for: instance) },
+            replaceSkippedFile: { skippedFile in
+                chooseDylibReplacement(skippedFile, for: instance)
+            },
+            edit: { editingInstance = instance },
+            remove: { model.removeInstance(instance) },
+            disabled: model.isBusy
+        )
+    }
+
+    private func libraryTile(for instance: ModInstance) -> some View {
+        LibraryModTile(
+            instance: instance,
+            iconURL: model.iconURL(for: instance),
+            launch: { model.launch(instance) },
+            isPlaying: model.activeInstanceID == instance.id,
+            isGameSessionActive: model.isGameSessionActive,
+            createDesktopShortcut: { model.createDesktopShortcut(for: instance) },
+            update: model.availableModUpdates[instance.id].map { file in
+                { model.updateMod(instance, using: file, catalog: catalog) }
+            },
+            showCustomFiles: { model.showCustomFilesInFinder(for: instance) },
+            showCustomMusic: { model.showCustomMusicInFinder(for: instance) },
+            edit: { editingInstance = instance },
+            remove: { model.removeInstance(instance) },
+            disabled: model.isBusy
+        )
+        .draggable(instance.id)
     }
 
     private var dashboard: some View {
@@ -328,64 +403,127 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ScrollView {
-                            LazyVStack(alignment: .trailing, spacing: 14) {
-                                if !model.availableModUpdates.isEmpty {
+                            VStack(alignment: .leading, spacing: 18) {
+                                HStack(spacing: 10) {
+                                    if !model.availableModUpdates.isEmpty {
+                                        Button {
+                                            model.updateAllMods(catalog: catalog)
+                                        } label: {
+                                            Label(
+                                                "Update All (\(model.availableModUpdates.count))",
+                                                systemImage: "arrow.triangle.2.circlepath"
+                                            )
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.indigo)
+                                        .disabled(model.isBusy || model.isCheckingModUpdates)
+                                    }
+                                    if model.isCheckingModUpdates {
+                                        ProgressView("Checking for mod updates…")
+                                            .font(.system(size: 11))
+                                    }
+                                    Spacer()
                                     Button {
-                                        model.updateAllMods(catalog: catalog)
+                                        showModLibrary.toggle()
                                     } label: {
                                         Label(
-                                            "Update All (\(model.availableModUpdates.count))",
-                                            systemImage: "arrow.triangle.2.circlepath"
+                                            showModLibrary ? "List View" : "Library",
+                                            systemImage: showModLibrary ? "list.bullet" : "square.grid.2x2"
                                         )
                                     }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.indigo)
-                                    .disabled(model.isBusy || model.isCheckingModUpdates)
-                                }
-                                if model.isCheckingModUpdates {
-                                    ProgressView("Checking for mod updates…")
-                                        .font(.system(size: 11))
+                                    .buttonStyle(.bordered)
+                                    .help(showModLibrary ? "Show mods as detailed rows" : "Show mods as square icons")
                                 }
                                 LazyVStack(alignment: .leading, spacing: 20) {
                                     ForEach(ModInstance.categorySections(filteredInstances)) { category in
+                                        let isCollapsed = collapsedCategoryIDs.contains(category.id)
                                         VStack(alignment: .leading, spacing: 11) {
-                                            HStack(spacing: 10) {
-                                                Text(category.title)
-                                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(.white.opacity(0.9))
-                                                Text("\(category.instances.count)")
-                                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                                    .foregroundStyle(.white.opacity(0.45))
-                                                Rectangle()
-                                                    .fill(.white.opacity(0.12))
-                                                    .frame(height: 1)
+                                            Button {
+                                                toggleCategory(category.id)
+                                            } label: {
+                                                HStack(spacing: 10) {
+                                                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                                        .font(.system(size: 10, weight: .bold))
+                                                        .foregroundStyle(.white.opacity(0.55))
+                                                    Text(category.title)
+                                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                                        .foregroundStyle(.white.opacity(0.9))
+                                                    Text("\(category.instances.count)")
+                                                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                                        .foregroundStyle(.white.opacity(0.45))
+                                                    Rectangle()
+                                                        .fill(.white.opacity(targetedCategoryID == category.id ? 0.55 : 0.12))
+                                                        .frame(height: 1)
+                                                }
+                                                .contentShape(Rectangle())
+                                                .padding(.vertical, 4)
                                             }
-                                            ForEach(category.instances) { instance in
-                                                InstanceCard(
-                                                    instance: instance,
-                                                    iconURL: model.iconURL(for: instance),
-                                                    launch: { model.launch(instance) },
-                                                    isGameSessionActive: model.isGameSessionActive,
-                                                    isActiveInstance: model.activeInstanceID == instance.id,
-                                                    createDesktopShortcut: { model.createDesktopShortcut(for: instance) },
-                                                    update: model.availableModUpdates[instance.id].map { file in
-                                                        { model.updateMod(instance, using: file, catalog: catalog) }
-                                                    },
-                                                    showCustomFiles: { model.showCustomFilesInFinder(for: instance) },
-                                                    showCustomMusic: { model.showCustomMusicInFinder(for: instance) },
-                                                    replaceSkippedFile: { skippedFile in
-                                                        chooseDylibReplacement(skippedFile, for: instance)
-                                                    },
-                                                    edit: { editingInstance = instance },
-                                                    remove: { model.removeInstance(instance) },
-                                                    disabled: model.isBusy
-                                                )
+                                            .buttonStyle(.plain)
+                                            .dropDestination(for: String.self) { items, _ in
+                                                moveInstance(items.first, to: category.title)
+                                            } isTargeted: { targeted in
+                                                targetedCategoryID = targeted ? category.id : nil
+                                            }
+                                            if !isCollapsed {
+                                                if showModLibrary {
+                                                    LazyVGrid(
+                                                        columns: [GridItem(.adaptive(minimum: 120, maximum: 150), spacing: 14)],
+                                                        alignment: .leading,
+                                                        spacing: 16
+                                                    ) {
+                                                        ForEach(category.instances) { instance in
+                                                            libraryTile(for: instance)
+                                                        }
+                                                    }
+                                                } else {
+                                                    ForEach(category.instances) { instance in
+                                                        instanceCard(for: instance)
+                                                            .draggable(instance.id)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                    Text("＋  Drop a mod here to create a category")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.62))
+                                        .frame(maxWidth: .infinity, minHeight: 34)
+                                        .background(
+                                            targetedCategoryID == "new-category" ? .cyan.opacity(0.15) : .white.opacity(0.045),
+                                            in: RoundedRectangle(cornerRadius: 9)
+                                        )
+                                        .dropDestination(for: String.self) { items, _ in
+                                            guard let instanceID = items.first,
+                                                  model.instances.contains(where: { $0.id == instanceID }) else {
+                                                return false
+                                            }
+                                            pendingCategoryInstanceID = instanceID
+                                            newCategoryName = ""
+                                            isCreatingCategory = true
+                                            return true
+                                        } isTargeted: { targeted in
+                                            targetedCategoryID = targeted ? "new-category" : nil
+                                        }
                                 }
                             }
                             .padding(24)
+                        }
+                        .alert("Create Category", isPresented: $isCreatingCategory) {
+                            TextField("Category name", text: $newCategoryName)
+                            Button("Create") {
+                                guard let instanceID = pendingCategoryInstanceID,
+                                      let instance = model.instances.first(where: { $0.id == instanceID }) else {
+                                    return
+                                }
+                                model.categorizeInstance(instance, as: newCategoryName)
+                                pendingCategoryInstanceID = nil
+                            }
+                            .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Button("Cancel", role: .cancel) {
+                                pendingCategoryInstanceID = nil
+                            }
+                        } message: {
+                            Text("Choose a name for the category. The dropped mod will be moved into it.")
                         }
                     }
                 }
@@ -1078,6 +1216,128 @@ private struct SetupPathRow: View {
         }
         .padding(15)
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct LibraryModTile: View {
+    let instance: ModInstance
+    let iconURL: URL?
+    let launch: () -> Void
+    let isPlaying: Bool
+    let isGameSessionActive: Bool
+    let createDesktopShortcut: () -> Void
+    let update: (() -> Void)?
+    let showCustomFiles: () -> Void
+    let showCustomMusic: () -> Void
+    let edit: () -> Void
+    let remove: () -> Void
+    let disabled: Bool
+    @State private var confirmRemoval = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                Button(action: launch) {
+                    icon
+                        .frame(width: 108, height: 108)
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 13)
+                                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                        }
+                        .overlay(alignment: .bottomTrailing) {
+                            if isPlaying {
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.black.opacity(0.9))
+                                    .padding(6)
+                                    .background(.green, in: Circle())
+                                    .padding(6)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled || (isGameSessionActive && !isPlaying))
+                .help(isGameSessionActive ? "Close the running game before launching another instance." : "Launch \(instance.name)")
+
+                Menu {
+                    Button("Play", systemImage: isPlaying ? "waveform" : "play.fill", action: launch)
+                        .disabled(disabled || isGameSessionActive)
+                    Button("Edit", systemImage: "slider.horizontal.3", action: edit)
+                        .disabled(disabled)
+                    if let update {
+                        Button("Update Mod", systemImage: "arrow.triangle.2.circlepath", action: update)
+                            .disabled(disabled)
+                    }
+                    Divider()
+                    Button("Add To Desktop", systemImage: "macwindow", action: createDesktopShortcut)
+                        .disabled(disabled)
+                    Button("Show in Finder", systemImage: "folder", action: showCustomFiles)
+                        .disabled(disabled)
+                    if instance.targetGame == .deltarune {
+                        Button("Music Folder", systemImage: "music.note", action: showCustomMusic)
+                            .disabled(disabled)
+                    }
+                    Divider()
+                    Button("Remove", systemImage: "trash", role: .destructive) {
+                        confirmRemoval = true
+                    }
+                    .disabled(disabled)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 27, height: 27)
+                        .background(.black.opacity(0.72), in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .padding(5)
+            }
+
+            Text(instance.name)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 34)
+            if !instance.version.isEmpty {
+                Text(instance.version)
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.cyan)
+                    .lineLimit(1)
+            }
+        }
+        .padding(9)
+        .frame(width: 132)
+        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isPlaying ? .green.opacity(0.42) : .white.opacity(0.08), lineWidth: 1)
+        }
+        .confirmationDialog("Remove \(instance.name)?", isPresented: $confirmRemoval, titleVisibility: .visible) {
+            Button("Remove Instance", role: .destructive, action: remove)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the saved mod instance. The original game files are unaffected.")
+        }
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if let iconURL, let image = NSImage(contentsOf: iconURL) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 13).fill(.indigo.opacity(0.2))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 27))
+                    .foregroundStyle(.cyan)
+            }
+        }
     }
 }
 

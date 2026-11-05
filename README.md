@@ -65,7 +65,11 @@ global sort by view count. Mod details show each supported release as an
 expandable version choice, including archived versions.
 The **My Mods** tab and the sidebar shortcuts are ordered by most recently
 played. The tab also has a search field for filtering installed mods by name,
-version, description, or author.
+version, description, or author. Assign categories in a mod's **Edit** sheet;
+category headings can be collapsed, and mods can be dragged onto a heading to
+move them. Drop a mod on **Create a category** to name a category and move it
+there. The **Library** button switches My Mods to a square-icon grid while
+keeping the category groups and collapsed states.
 Use **Add To Desktop** in a mod's options to create a small launcher app on the
 Desktop. It opens that mod in the manager directly, and uses the mod's icon
 when available. If the manager is already running, the shortcut launches the
