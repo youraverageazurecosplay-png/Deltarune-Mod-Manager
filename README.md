@@ -63,6 +63,8 @@ The catalog loads 30 mods initially, then preloads 15 more when you reach the
 middle of the loaded results. The GameBanana search API does not provide a
 global sort by view count. Mod details show each supported release as an
 expandable version choice, including archived versions.
+My Mods opens in Library view by default. Change the preference in Settings or
+use the view switcher at the top of My Mods.
 The **My Mods** tab and the sidebar shortcuts are ordered by most recently
 played. The tab also has a search field for filtering installed mods by name,
 version, description, or author. Assign categories in a mod's **Edit** sheet;

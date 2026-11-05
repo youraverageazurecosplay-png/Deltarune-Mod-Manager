@@ -22,7 +22,7 @@ struct ContentView: View {
     @State private var instanceSearchText = ""
     @State private var isModSidebarCollapsed = false
     @State private var isDownloadQueuePresented = false
-    @AppStorage("showModLibrary") private var showModLibrary = false
+    @AppStorage("showModLibrary") private var showModLibrary = true
     @AppStorage("collapsedModCategories") private var collapsedModCategoriesData = ""
     @State private var targetedCategoryID: String?
     @State private var pendingCategoryInstanceID: String?
@@ -194,14 +194,16 @@ struct ContentView: View {
 
     private var dashboard: some View {
         HStack(spacing: 0) {
-            modSidebar
-                .frame(width: isModSidebarCollapsed ? 34 : 78)
-                .frame(maxHeight: .infinity)
-                .background(.black.opacity(0.24))
-                .overlay(alignment: .trailing) {
-                    Rectangle().fill(.white.opacity(0.10)).frame(width: 1)
+            if section != .instances || !showModLibrary {
+                modSidebar
+                    .frame(width: isModSidebarCollapsed ? 34 : 78)
+                    .frame(maxHeight: .infinity)
+                    .background(.black.opacity(0.24))
+                    .overlay(alignment: .trailing) {
+                        Rectangle().fill(.white.opacity(0.10)).frame(width: 1)
+                    }
+                    .transition(.move(edge: .leading).combined(with: .opacity))
                 }
-                .animation(.easeInOut(duration: 0.22), value: isModSidebarCollapsed)
 
             VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
@@ -634,6 +636,25 @@ struct ContentView: View {
             Text("Manage the game locations used for mod installation and launch.")
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.62))
+
+            HStack(spacing: 12) {
+                Image(systemName: "square.grid.2x2")
+                    .foregroundStyle(.cyan)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Library view")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Show mods as square icons in My Mods.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                Spacer()
+                Toggle("Use Library view", isOn: $showModLibrary)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Use Library view by default")
+            }
+            .padding(15)
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
 
             SetupPathRow(
                 number: "01",
@@ -1285,11 +1306,15 @@ private struct LibraryModTile: View {
                     .disabled(disabled)
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 27, height: 27)
-                        .background(.black.opacity(0.72), in: Circle())
-                        .overlay(Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1))
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .frame(width: 30, height: 30)
+                        .background(.regularMaterial, in: Circle())
+                        .overlay {
+                            Circle()
+                                .strokeBorder(.white.opacity(0.72), lineWidth: 1)
+                        }
+                        .shadow(color: .black.opacity(0.65), radius: 5, y: 2)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
