@@ -447,14 +447,12 @@ final class AppModel: ObservableObject {
                 }
                 do {
                     let details = try await catalog.details(forModID: modID)
-                    let latest = details.files
-                        .filter(\.isSupportedRelease)
-                        .sorted { ($0.dateAdded ?? 0) > ($1.dateAdded ?? 0) }
-                        .first
-                    guard let latest,
-                          latest.id != installedFileID,
-                          instance.gameBananaFileDateAdded == nil ||
-                            (latest.dateAdded ?? 0) > (instance.gameBananaFileDateAdded ?? 0) else {
+                    guard let latest = GameBananaReleasePicker.updateCandidate(
+                        from: details.files,
+                        for: instance.targetGame,
+                        installedFileID: installedFileID,
+                        installedFileDateAdded: instance.gameBananaFileDateAdded
+                    ) else {
                         continue
                     }
                     availableModUpdates[instance.id] = latest

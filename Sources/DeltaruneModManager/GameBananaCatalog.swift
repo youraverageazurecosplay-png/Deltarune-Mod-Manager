@@ -224,6 +224,35 @@ struct GameBananaFile: Decodable, Identifiable {
     }
 }
 
+enum GameBananaReleasePicker {
+    static func updateCandidate(
+        from files: [GameBananaFile],
+        for game: ModGame,
+        installedFileID: Int,
+        installedFileDateAdded: Int64?
+    ) -> GameBananaFile? {
+        let supported = files.filter(\.isSupportedRelease)
+        let deltamods = supported.filter(\.isDeltamod)
+        let prefersDeltamod = game == .deltarune && !deltamods.isEmpty
+        let candidates = prefersDeltamod ? deltamods : supported
+        guard let latest = candidates.max(by: { ($0.dateAdded ?? 0) < ($1.dateAdded ?? 0) }),
+              latest.id != installedFileID else {
+            return nil
+        }
+
+        let installedFile = files.first { $0.id == installedFileID }
+        let isFormatMigration = prefersDeltamod
+            && latest.isDeltamod
+            && installedFile?.isDeltamod != true
+        guard isFormatMigration
+                || installedFileDateAdded == nil
+                || (latest.dateAdded ?? 0) > (installedFileDateAdded ?? 0) else {
+            return nil
+        }
+        return latest
+    }
+}
+
 struct GameBananaOneClickLink: Equatable {
     let fileID: Int
     let modID: Int

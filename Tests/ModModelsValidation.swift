@@ -734,6 +734,44 @@ struct ModModelsValidation {
             "The GameBanana API's direct preview image URL wasn't decoded."
         )
         try require(detail.imageURLs.count == 1, "GameBanana direct preview URL wasn't included in the fallback list.")
+        let fireshockFiles = try JSONDecoder().decode([GameBananaFile].self, from: Data("""
+        [
+          {
+            "_idRow": 1788969,
+            "_sFile": "fireshock_deltamod_2983e.zip",
+            "_nFilesize": 5216973,
+            "_sDownloadUrl": "https://gamebanana.com/dl/1788969",
+            "_bIsArchived": false,
+            "_tsDateAdded": 1787085290
+          },
+          {
+            "_idRow": 1788971,
+            "_sFile": "fireshock_xdelta_bc1bc_7fa0d.rar",
+            "_nFilesize": 6004506,
+            "_sDownloadUrl": "https://gamebanana.com/dl/1788971",
+            "_bIsArchived": false,
+            "_tsDateAdded": 1787085293
+          }
+        ]
+        """.utf8))
+        try require(
+            GameBananaReleasePicker.updateCandidate(
+                from: fireshockFiles,
+                for: .deltarune,
+                installedFileID: 1788971,
+                installedFileDateAdded: 1787085293
+            )?.id == 1788969,
+            "The Deltarune updater didn't prefer a Deltamod over a newer manual archive."
+        )
+        try require(
+            GameBananaReleasePicker.updateCandidate(
+                from: fireshockFiles,
+                for: .deltarune,
+                installedFileID: 1788969,
+                installedFileDateAdded: 1787085290
+            ) == nil,
+            "An already-installed Deltamod was incorrectly marked as needing an update."
+        )
         try require(GameBananaSort.relevance.apiValue == "best_match", "Relevance wasn't mapped to GameBanana's global order.")
         try require(GameBananaSort.popularity.apiValue == "popularity", "Popularity wasn't mapped to GameBanana's global order.")
         try require(GameBananaSort.newest.apiValue == "date", "Newest wasn't mapped to GameBanana's global order.")
