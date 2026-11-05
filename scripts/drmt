@@ -1,0 +1,60 @@
+#!/bin/sh
+# Deltarune Mod Manager CLI
+set -eu
+
+instances="$HOME/Library/Application Support/Deltarune Mod Manager/Instances"
+
+usage() {
+    printf 'Usage: drmt list | drmt launch <mod name or instance id>\n' >&2
+    exit 2
+}
+
+if [ "$#" -eq 1 ] && [ "$1" = "list" ]; then
+    if [ ! -d "$instances" ]; then
+        printf 'No mod instances are installed yet.\n'
+        exit 0
+    fi
+    found=false
+    for manifest in "$instances"/*/manifest.json; do
+        [ -f "$manifest" ] || continue
+        id=$(/usr/bin/plutil -extract id raw -o - "$manifest") || continue
+        name=$(/usr/bin/plutil -extract name raw -o - "$manifest") || continue
+        printf '%s\t%s\n' "$name" "$id"
+        found=true
+    done
+    if [ "$found" = false ]; then
+        printf 'No mod instances are installed yet.\n'
+    fi
+    exit 0
+fi
+
+[ "$#" -eq 2 ] && [ "$1" = "launch" ] || usage
+query=$2
+[ -n "$query" ] || usage
+[ -d "$instances" ] || {
+    printf 'No mod instances are installed yet.\n' >&2
+    exit 1
+}
+
+match_id=
+matches=0
+for manifest in "$instances"/*/manifest.json; do
+    [ -f "$manifest" ] || continue
+    id=$(/usr/bin/plutil -extract id raw -o - "$manifest") || continue
+    name=$(/usr/bin/plutil -extract name raw -o - "$manifest") || continue
+    if [ "$query" = "$id" ] || [ "$query" = "$name" ]; then
+        match_id=$id
+        matches=$((matches + 1))
+    fi
+done
+
+if [ "$matches" -eq 0 ]; then
+    printf 'No mod instance matches "%s". Run "drmt list" to see installed mods.\n' "$query" >&2
+    exit 1
+fi
+if [ "$matches" -gt 1 ]; then
+    printf 'More than one mod is named "%s". Run "drmt list" and launch it by instance id.\n' "$query" >&2
+    exit 1
+fi
+
+exec /usr/bin/open -b com.local.deltarune-mod-manager "dmt://launch/$match_id"
