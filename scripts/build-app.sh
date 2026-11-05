@@ -63,9 +63,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.local.deltarune-mod-manager</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.3</string>
+    <string>1.0.4</string>
     <key>CFBundleVersion</key>
-    <string>4</string>
+    <string>5</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleExecutable</key>
@@ -105,7 +105,7 @@ pkgbuild \
     --component "$APP" \
     --install-location /Applications \
     --identifier com.local.deltarune-mod-manager \
-    --version 1.0.3 \
+    --version 1.0.4 \
     "$PKG"
 
 printf 'Built installer: %s\n' "$PKG"
