@@ -417,7 +417,7 @@ final class AppModel: ObservableObject {
             defer { isCheckingForUpdates = false }
             do {
                 let release = try await AppUpdateService.latestRelease()
-                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.4"
+                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.5"
                 if AppUpdateService.isNewer(release.tagName, than: currentVersion) {
                     statusMessage = "Version \(release.tagName) is available. Opening the release download page..."
                     guard NSWorkspace.shared.open(release.htmlURL) else {

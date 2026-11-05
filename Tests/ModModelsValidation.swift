@@ -772,6 +772,52 @@ struct ModModelsValidation {
             ) == nil,
             "An already-installed Deltamod was incorrectly marked as needing an update."
         )
+        let sixtyFPSFiles = try JSONDecoder().decode([GameBananaFile].self, from: Data("""
+        [
+          {
+            "_idRow": 1861573,
+            "_sFile": "deltarune_60fps_v202.zip",
+            "_nFilesize": 12430514,
+            "_sDownloadUrl": "https://gamebanana.com/dl/1861573",
+            "_bIsArchived": false,
+            "_tsDateAdded": 1792814168
+          },
+          {
+            "_idRow": 1861574,
+            "_sFile": "deltarune_60fps_nxrune_compat_v202.zip",
+            "_nFilesize": 8607387,
+            "_sDownloadUrl": "https://gamebanana.com/dl/1861574",
+            "_bIsArchived": false,
+            "_tsDateAdded": 1792814203
+          },
+          {
+            "_idRow": 1861577,
+            "_sFile": "deltarune_60fps_advanced_v202.zip",
+            "_nFilesize": 53051800,
+            "_sDownloadUrl": "https://gamebanana.com/dl/1861577",
+            "_bIsArchived": false,
+            "_tsDateAdded": 1792814258
+          }
+        ]
+        """.utf8))
+        try require(
+            GameBananaReleasePicker.updateCandidate(
+                from: sixtyFPSFiles,
+                for: .deltarune,
+                installedFileID: 1861573,
+                installedFileDateAdded: 1792814168
+            ) == nil,
+            "The 60 FPS updater offered a compatibility or advanced variant over the installed standard release."
+        )
+        try require(
+            GameBananaReleasePicker.updateCandidate(
+                from: sixtyFPSFiles,
+                for: .deltarune,
+                installedFileID: 1841436,
+                installedFileDateAdded: 1791444813
+            )?.id == 1861573,
+            "The 60 FPS updater didn't select the standard release for an older standard install."
+        )
         try require(GameBananaSort.relevance.apiValue == "best_match", "Relevance wasn't mapped to GameBanana's global order.")
         try require(GameBananaSort.popularity.apiValue == "popularity", "Popularity wasn't mapped to GameBanana's global order.")
         try require(GameBananaSort.newest.apiValue == "date", "Newest wasn't mapped to GameBanana's global order.")

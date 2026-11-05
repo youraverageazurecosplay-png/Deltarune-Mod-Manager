@@ -225,6 +225,12 @@ struct GameBananaFile: Decodable, Identifiable {
 }
 
 enum GameBananaReleasePicker {
+    private enum Variant: Equatable {
+        case standard
+        case nxruneCompatibility
+        case advanced
+    }
+
     static func updateCandidate(
         from files: [GameBananaFile],
         for game: ModGame,
@@ -234,7 +240,16 @@ enum GameBananaReleasePicker {
         let supported = files.filter(\.isSupportedRelease)
         let deltamods = supported.filter(\.isDeltamod)
         let prefersDeltamod = game == .deltarune && !deltamods.isEmpty
-        let candidates = prefersDeltamod ? deltamods : supported
+        let candidates: [GameBananaFile]
+        if prefersDeltamod {
+            candidates = deltamods
+        } else {
+            let installedVariant = files.first { $0.id == installedFileID }.map(variant(for:)) ?? .standard
+            let matchingVariant = supported.filter { variant(for: $0) == installedVariant }
+            candidates = matchingVariant.isEmpty
+                ? supported.filter { variant(for: $0) != .advanced }
+                : matchingVariant
+        }
         guard let latest = candidates.max(by: { ($0.dateAdded ?? 0) < ($1.dateAdded ?? 0) }),
               latest.id != installedFileID else {
             return nil
@@ -250,6 +265,17 @@ enum GameBananaReleasePicker {
             return nil
         }
         return latest
+    }
+
+    private static func variant(for file: GameBananaFile) -> Variant {
+        let name = file.name.localizedLowercase
+        if name.contains("advanced") {
+            return .advanced
+        }
+        if name.contains("nxrune") || name.contains("compat") {
+            return .nxruneCompatibility
+        }
+        return .standard
     }
 }
 
